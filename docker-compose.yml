@@ -1,0 +1,85 @@
+services:
+  tube-status-app:
+    build:
+      context: .
+      dockerfile: tube-status-app/Dockerfile
+    image: igtest/tube-status-app:local
+    container_name: tube-status-app
+    environment:
+      SERVER_PORT: "8080"
+      TFL_APP_ID: ${TFL_APP_ID:-}
+      TFL_APP_KEY: ${TFL_APP_KEY:-}
+      TFL_SYNTHETIC_FAULT_ENABLED: ${TFL_SYNTHETIC_FAULT_ENABLED:-true}
+      TFL_SYNTHETIC_FAULT_SERVER_ERROR_RATE: ${TFL_SYNTHETIC_FAULT_SERVER_ERROR_RATE:-0.02}
+      TFL_SYNTHETIC_FAULT_TIMEOUT_RATE: ${TFL_SYNTHETIC_FAULT_TIMEOUT_RATE:-0.02}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:8080/actuator/health/readiness || curl --fail --silent http://localhost:8080/actuator/health",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts/prometheus-alerts.yml:/etc/prometheus/alerts/prometheus-alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      tube-status-app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards/tube-status:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  synthetic-traffic:
+    image: busybox:1.36
+    container_name: synthetic-traffic
+    environment:
+      SYNTHETIC_TRAFFIC_INTERVAL_SECONDS: ${SYNTHETIC_TRAFFIC_INTERVAL_SECONDS:-1}
+      SYNTHETIC_TRAFFIC_BURST_PER_INTERVAL: ${SYNTHETIC_TRAFFIC_BURST_PER_INTERVAL:-3}
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          i=0
+          while [ "$${i}" -lt "$${SYNTHETIC_TRAFFIC_BURST_PER_INTERVAL}" ]; do
+            wget -q -O /dev/null --header="API-Version: 1.0" http://tube-status-app:8080/api/v1/tube/central/status || true
+            wget -q -O /dev/null --header="API-Version: 1.0" http://tube-status-app:8080/api/v1/tube/disruptions/unplanned || true
+            i=$$((i + 1))
+          done
+          sleep "$${SYNTHETIC_TRAFFIC_INTERVAL_SECONDS}"
+        done
+    depends_on:
+      tube-status-app:
+        condition: service_healthy
+    restart: unless-stopped

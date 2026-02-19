@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Tube Status Dashboards
+    orgId: 1
+    folder: Tube Status
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/tube-status

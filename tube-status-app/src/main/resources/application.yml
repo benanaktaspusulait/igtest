@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: tube-status-service
+  mvc:
+    apiversion:
+      default: ${app.api.default-version}
+      required: false
+      supported:
+        - ${app.api.default-version}
+      use:
+        header: ${app.api.version-header}
+
+tfl:
+  base-url: https://api.tfl.gov.uk
+  line-status-path: /Line/{lineId}/Status
+  line-status-range-path: /Line/{lineId}/Status/{startDate}/to/{endDate}
+  all-tube-statuses-path: /Line/Mode/tube/Status
+  connect-timeout-millis: 1000
+  read-timeout-millis: 2000
+  max-in-flight: ${TFL_MAX_IN_FLIGHT:200}
+  app-id: ${TFL_APP_ID:}
+  app-key: ${TFL_APP_KEY:}
+  synthetic-fault:
+    enabled: ${TFL_SYNTHETIC_FAULT_ENABLED:false}
+    server-error-rate: ${TFL_SYNTHETIC_FAULT_SERVER_ERROR_RATE:0.0}
+    timeout-rate: ${TFL_SYNTHETIC_FAULT_TIMEOUT_RATE:0.0}
+
+resilience:
+  policies:
+    tfl:
+      timeout-ms: ${RESILIENCE_TIMEOUT_MS_TFL:2000}
+      retry:
+        max-retries: ${RESILIENCE_RETRY_MAX:3}
+        initial-backoff-ms: 1000
+        max-backoff-ms: 4000
+        jitter-factor: 0.25
+      circuit-breaker:
+        failure-threshold: ${RESILIENCE_CB_FAIL:5}
+        half-open-after-seconds: ${RESILIENCE_CB_HALFOPEN_SEC:30}
+        half-open-max-calls: 2
+      rate-limit:
+        permits-per-minute: ${RATE_LIMIT_PER_MINUTE:100}
+
+cache:
+  line-status:
+    maximum-size: 500
+    expire-after-write: PT15M
+  unplanned-disruptions:
+    maximum-size: 10
+    expire-after-write: PT5M
+
+sli:
+  freshness-threshold: PT5M
+
+app:
+  api:
+    base-path: /api/v1/tube
+    line-status-path: /{lineId}/status
+    unplanned-disruptions-path: /disruptions/unplanned
+    default-version: "1.0"
+    version-range: "1.0"
+    version-header: API-Version
+    trust-forward-headers: ${TRUST_FORWARD_HEADERS:false}
+    trusted-proxy-ips: ${TRUSTED_PROXY_IPS:}
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        tube_status_request_latency: true
+        latency_ms: true
+      percentiles:
+        tube_status_request_latency: 0.95
+        latency_ms: 0.95
+  tracing:
+    sampling:
+      probability: 1.0

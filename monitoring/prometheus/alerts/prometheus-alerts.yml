@@ -1,0 +1,82 @@
+groups:
+  - name: tube-status-slo
+    rules:
+      - alert: TflDependencyFastBurn
+        expr: |
+          (
+            sum(rate(requests_total{dependency="tfl",outcome="upstream_error"}[5m]))
+            /
+            clamp_min(
+              sum(rate(requests_total{dependency="tfl",outcome=~"success|upstream_error"}[5m])),
+              1e-9
+            )
+          ) > (14 * 0.001)
+        for: 5m
+        labels:
+          severity: page
+          slo: availability
+        annotations:
+          summary: "TfL dependency error budget fast burn"
+          description: "5m burn rate is above 14x for 99.9% availability SLO."
+
+      - alert: TflDependencySlowBurn
+        expr: |
+          (
+            sum(rate(requests_total{dependency="tfl",outcome="upstream_error"}[1h]))
+            /
+            clamp_min(
+              sum(rate(requests_total{dependency="tfl",outcome=~"success|upstream_error"}[1h])),
+              1e-9
+            )
+          ) > (2 * 0.001)
+        for: 1h
+        labels:
+          severity: ticket
+          slo: availability
+        annotations:
+          summary: "TfL dependency error budget slow burn"
+          description: "1h burn rate is above 2x for 99.9% availability SLO."
+
+      - alert: TubeStatusFreshnessBreach
+        expr: |
+          (
+            sum(rate(tube_status_freshness_total{result="stale"}[1h]))
+            /
+            sum(rate(tube_status_freshness_total[1h]))
+          ) > 0.01
+        for: 1h
+        labels:
+          severity: ticket
+          slo: freshness
+        annotations:
+          summary: "Tube status freshness SLO breach"
+          description: "Stale ratio exceeds 1% over 1h window."
+
+      - alert: TubeStatusCorrectnessBreach
+        expr: |
+          (
+            sum(rate(tube_status_correctness_total{result="invalid"}[1h]))
+            /
+            sum(rate(tube_status_correctness_total[1h]))
+          ) > 0.0005
+        for: 1h
+        labels:
+          severity: ticket
+          slo: correctness
+        annotations:
+          summary: "Tube status correctness SLO breach"
+          description: "Invalid response ratio exceeds 0.05% over 1h window."
+
+      - alert: TflDependencyLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(latency_ms_bucket{dependency="tfl"}[10m])) by (le)
+          ) > 300
+        for: 10m
+        labels:
+          severity: page
+          slo: latency
+        annotations:
+          summary: "TfL dependency p95 latency breach"
+          description: "p95 latency is above 300ms for 10 minutes."

@@ -1,0 +1,29 @@
+# Build artifacts
+/target/
+**/target/
+*.log
+logs/
+hs_err_pid*
+replay_pid*
+
+# Maven
+.mvn/timing.properties
+dependency-reduced-pom.xml
+
+# IDE/editor
+/.idea/
+**/.idea/
+*.iml
+.vscode/
+
+# Local environment
+/.venv/
+.venv/
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+**/.DS_Store

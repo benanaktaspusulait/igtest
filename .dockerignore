@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+**/.idea
+*.iml
+.DS_Store
+**/target
+**/.mvn
+**/.DS_Store
+**/.classpath
+**/.project
+**/.settings

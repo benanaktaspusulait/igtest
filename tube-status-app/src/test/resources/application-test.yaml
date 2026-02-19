@@ -1,0 +1,32 @@
+spring:
+  mvc:
+    apiversion:
+      default: "1.0"
+      required: false
+      supported:
+        - "1.0"
+      use:
+        header: API-Version
+
+tfl:
+  base-url: https://api.tfl.test
+  line-status-path: /Line/{lineId}/Status
+  line-status-range-path: /Line/{lineId}/Status/{startDate}/to/{endDate}
+  all-tube-statuses-path: /Line/Mode/tube/Status
+  connect-timeout-millis: 300
+  read-timeout-millis: 500
+
+app:
+  api:
+    base-path: /api/v1/tube
+    line-status-path: /{lineId}/status
+    unplanned-disruptions-path: /disruptions/unplanned
+    default-version: "1.0"
+    version-range: "1.0"
+    version-header: API-Version
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
