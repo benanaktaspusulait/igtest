@@ -47,7 +47,7 @@ public class TflClient {
         this.restClient = tflRestClient;
         this.properties = properties;
         this.resilientExecutor = resilientExecutor;
-        this.inFlightSemaphore = new Semaphore(properties.getMaxInFlight(), true);
+        this.inFlightSemaphore = new Semaphore(properties.maxInFlight(), true);
     }
 
     public List<TflLine> getLineStatus(String lineId, String clientKey) {
@@ -95,8 +95,8 @@ public class TflClient {
     }
 
     private void maybeInjectSyntheticTransientFault() {
-        SyntheticFaultProperties faultProperties = properties.getSyntheticFault();
-        if (faultProperties == null || !faultProperties.enabled()) {
+        SyntheticFaultProperties faultProperties = properties.syntheticFault();
+        if (!faultProperties.enabled()) {
             return;
         }
 
@@ -165,29 +165,29 @@ public class TflClient {
     }
 
     private URI buildLineStatusUri(UriBuilder uriBuilder, String lineId) {
-        UriBuilder builder = uriBuilder.path(properties.getLineStatusPath());
+        UriBuilder builder = uriBuilder.path(properties.lineStatusPath());
         addAuthParams(builder);
         return builder.build(lineId);
     }
 
     private URI buildLineStatusRangeUri(UriBuilder uriBuilder, String lineId, LocalDate startDate, LocalDate endDate) {
-        UriBuilder builder = uriBuilder.path(properties.getLineStatusRangePath());
+        UriBuilder builder = uriBuilder.path(properties.lineStatusRangePath());
         addAuthParams(builder);
         return builder.build(lineId, startDate, endDate);
     }
 
     private URI buildAllTubeStatusesUri(UriBuilder uriBuilder) {
-        UriBuilder builder = uriBuilder.path(properties.getAllTubeStatusesPath());
+        UriBuilder builder = uriBuilder.path(properties.allTubeStatusesPath());
         addAuthParams(builder);
         return builder.build();
     }
 
     private void addAuthParams(UriBuilder builder) {
-        if (StringUtils.hasText(properties.getAppId())) {
-            builder.queryParam(AppConstants.Tfl.APP_ID_QUERY_PARAM, properties.getAppId());
+        if (StringUtils.hasText(properties.appId())) {
+            builder.queryParam(AppConstants.Tfl.APP_ID_QUERY_PARAM, properties.appId());
         }
-        if (StringUtils.hasText(properties.getAppKey())) {
-            builder.queryParam(AppConstants.Tfl.APP_KEY_QUERY_PARAM, properties.getAppKey());
+        if (StringUtils.hasText(properties.appKey())) {
+            builder.queryParam(AppConstants.Tfl.APP_KEY_QUERY_PARAM, properties.appKey());
         }
     }
 }

@@ -66,10 +66,16 @@ class ClientKeyResolverTest {
     }
 
     private ApiProperties apiProperties(boolean trustForwardHeaders, List<String> trustedProxyIps) {
-        ApiProperties properties = new ApiProperties();
-        properties.setTrustForwardHeaders(trustForwardHeaders);
-        properties.setTrustedProxyIps(trustedProxyIps);
-        return properties;
+        return new ApiProperties(
+                AppConstants.Api.DEFAULT_BASE_PATH,
+                AppConstants.Api.DEFAULT_LINE_STATUS_PATH,
+                AppConstants.Api.DEFAULT_UNPLANNED_DISRUPTIONS_PATH,
+                AppConstants.Api.DEFAULT_API_VERSION,
+                AppConstants.Api.DEFAULT_API_VERSION_RANGE,
+                AppConstants.Api.DEFAULT_API_VERSION_HEADER,
+                trustForwardHeaders,
+                trustedProxyIps
+        );
     }
 
     private MockHttpServletRequest requestWithRemoteAddr(String remoteAddr) {

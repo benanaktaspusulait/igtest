@@ -29,11 +29,11 @@ public class AppConfig {
     @Bean
     public RestClient tflRestClient(RestClient.Builder builder, TflProperties properties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
-        requestFactory.setReadTimeout(properties.getReadTimeoutMillis());
+        requestFactory.setConnectTimeout(properties.connectTimeoutMillis());
+        requestFactory.setReadTimeout(properties.readTimeoutMillis());
 
         return builder
-                .baseUrl(properties.getBaseUrl())
+                .baseUrl(properties.baseUrl())
                 .requestFactory(requestFactory)
                 .build();
     }
@@ -42,8 +42,8 @@ public class AppConfig {
     @Qualifier(AppConstants.CacheNames.LINE_STATUS_CACHE_BEAN)
     public Cache<String, LineStatusResponse> lineStatusCache(CacheProperties cacheProperties) {
         return Caffeine.newBuilder()
-                .maximumSize(cacheProperties.getLineStatus().getMaximumSize())
-                .expireAfterWrite(cacheProperties.getLineStatus().getExpireAfterWrite())
+                .maximumSize(cacheProperties.lineStatus().maximumSize())
+                .expireAfterWrite(cacheProperties.lineStatus().expireAfterWrite())
                 .build();
     }
 
@@ -51,8 +51,8 @@ public class AppConfig {
     @Qualifier(AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_BEAN)
     public Cache<String, UnplannedDisruptionsResponse> unplannedDisruptionCache(CacheProperties cacheProperties) {
         return Caffeine.newBuilder()
-                .maximumSize(cacheProperties.getUnplannedDisruptions().getMaximumSize())
-                .expireAfterWrite(cacheProperties.getUnplannedDisruptions().getExpireAfterWrite())
+                .maximumSize(cacheProperties.unplannedDisruptions().maximumSize())
+                .expireAfterWrite(cacheProperties.unplannedDisruptions().expireAfterWrite())
                 .build();
     }
 }

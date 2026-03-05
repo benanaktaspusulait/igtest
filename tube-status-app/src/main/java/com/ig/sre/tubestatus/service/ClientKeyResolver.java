@@ -14,8 +14,8 @@ public class ClientKeyResolver {
     private final Set<String> trustedProxyIps;
 
     public ClientKeyResolver(ApiProperties apiProperties) {
-        this.trustForwardHeaders = apiProperties.isTrustForwardHeaders();
-        this.trustedProxyIps = Set.copyOf(apiProperties.getTrustedProxyIps());
+        this.trustForwardHeaders = apiProperties.trustForwardHeaders();
+        this.trustedProxyIps = Set.copyOf(apiProperties.trustedProxyIps());
     }
 
     public String resolve(HttpServletRequest request) {

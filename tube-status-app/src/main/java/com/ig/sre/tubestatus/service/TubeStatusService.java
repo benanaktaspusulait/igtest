@@ -319,7 +319,7 @@ public class TubeStatusService {
         if (dataAge.isNegative()) {
             return true;
         }
-        return dataAge.compareTo(sliProperties.getFreshnessThreshold()) <= 0;
+        return dataAge.compareTo(sliProperties.freshnessThreshold()) <= 0;
     }
 
     private void recordCorrectness(String endpoint, boolean valid) {

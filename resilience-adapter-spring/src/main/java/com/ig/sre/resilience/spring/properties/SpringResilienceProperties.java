@@ -13,18 +13,11 @@ import java.util.Objects;
 
 @ConfigurationProperties(prefix = SpringAdapterConstants.Config.RESILIENCE_PREFIX)
 @Validated
-public class SpringResilienceProperties {
-
-    @Valid
-    @NotEmpty
-    private Map<String, DependencyPolicyProperties> policies = Map.of();
-
-    public Map<String, DependencyPolicyProperties> getPolicies() {
-        return copyPolicies(policies);
-    }
-
-    public void setPolicies(Map<String, DependencyPolicyProperties> policies) {
-        this.policies = copyPolicies(Objects.requireNonNull(policies, "policies must not be null"));
+public record SpringResilienceProperties(
+        @Valid @NotEmpty Map<String, DependencyPolicyProperties> policies
+) {
+    public SpringResilienceProperties {
+        policies = copyPolicies(Objects.requireNonNullElse(policies, Map.of()));
     }
 
     public Map<String, ResiliencePolicy> toPolicies() {
@@ -39,5 +32,4 @@ public class SpringResilienceProperties {
         source.forEach((key, value) -> copied.put(key, Objects.requireNonNull(value, "dependency policy must not be null")));
         return Map.copyOf(copied);
     }
-
 }

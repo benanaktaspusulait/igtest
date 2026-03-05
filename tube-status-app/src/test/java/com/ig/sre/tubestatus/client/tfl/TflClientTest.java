@@ -73,16 +73,7 @@ class TflClientTest {
 
     @BeforeEach
     void setUp() {
-        properties = new TflProperties();
-        properties.setBaseUrl(TestConstants.TEST_TFL_BASE_URL);
-        properties.setLineStatusPath(TestConstants.TEST_TFL_LINE_STATUS_PATH);
-        properties.setLineStatusRangePath(TestConstants.TEST_TFL_LINE_STATUS_RANGE_PATH);
-        properties.setAllTubeStatusesPath(TestConstants.TEST_TFL_ALL_TUBE_STATUSES_PATH);
-        properties.setAppId(TestConstants.TEST_TFL_APP_ID);
-        properties.setAppKey(TestConstants.TEST_TFL_APP_KEY);
-
-        RestClient.Builder builder = RestClient.builder().baseUrl(TestConstants.TEST_TFL_BASE_URL);
-        mockServer = MockRestServiceServer.bindTo(builder).build();
+        properties = defaultProperties();
 
         lenient().when(resilientExecutor.execute(any(), any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -90,7 +81,7 @@ class TflClientTest {
             return supplier.get();
         });
 
-        client = new TflClient(builder.build(), properties, resilientExecutor);
+        initializeClient(properties);
     }
 
     @Test
@@ -147,8 +138,8 @@ class TflClientTest {
 
     @Test
     void getAllTubeStatusesReturnsEmptyListWhenBodyIsMissing() {
-        properties.setAppId(" ");
-        properties.setAppKey(null);
+        properties = createProperties(" ", null, SyntheticFaultProperties.DISABLED, 200);
+        initializeClient(properties);
         mockServer.expect(requestTo(TestConstants.TEST_TFL_BASE_URL + TestConstants.TEST_TFL_ALL_TUBE_STATUSES_PATH))
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
@@ -225,7 +216,13 @@ class TflClientTest {
 
     @Test
     void syntheticTimeoutFaultCanBeForcedForObservability() {
-        properties.setSyntheticFault(new SyntheticFaultProperties(true, 0.0d, 1.0d));
+        properties = createProperties(
+                TestConstants.TEST_TFL_APP_ID,
+                TestConstants.TEST_TFL_APP_KEY,
+                new SyntheticFaultProperties(true, 0.0d, 1.0d),
+                200
+        );
+        client = new TflClient(RestClient.builder().baseUrl(TestConstants.TEST_TFL_BASE_URL).build(), properties, resilientExecutor);
 
         assertThatThrownBy(() -> client.getLineStatus(TestConstants.LINE_ID_CENTRAL, TestConstants.CLIENT_KEY_IP_1))
                 .isInstanceOf(UpstreamException.class)
@@ -234,7 +231,13 @@ class TflClientTest {
 
     @Test
     void syntheticServerErrorFaultCanBeForcedForObservability() {
-        properties.setSyntheticFault(new SyntheticFaultProperties(true, 1.0d, 0.0d));
+        properties = createProperties(
+                TestConstants.TEST_TFL_APP_ID,
+                TestConstants.TEST_TFL_APP_KEY,
+                new SyntheticFaultProperties(true, 1.0d, 0.0d),
+                200
+        );
+        client = new TflClient(RestClient.builder().baseUrl(TestConstants.TEST_TFL_BASE_URL).build(), properties, resilientExecutor);
 
         assertThatThrownBy(() -> client.getLineStatus(TestConstants.LINE_ID_CENTRAL, TestConstants.CLIENT_KEY_IP_1))
                 .isInstanceOf(UpstreamException.class)
@@ -247,7 +250,12 @@ class TflClientTest {
 
     @Test
     void rejectsWhenInFlightLimitIsReached() throws Exception {
-        properties.setMaxInFlight(1);
+        properties = createProperties(
+                TestConstants.TEST_TFL_APP_ID,
+                TestConstants.TEST_TFL_APP_KEY,
+                SyntheticFaultProperties.DISABLED,
+                1
+        );
         ResilientExecutor blockingExecutor = mock(ResilientExecutor.class);
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -321,5 +329,40 @@ class TflClientTest {
         when(responseSpec.body(any(ParameterizedTypeReference.class))).thenThrow(exception);
 
         return new TflClient(restClient, properties, passThroughExecutor);
+    }
+
+    private void initializeClient(TflProperties configuredProperties) {
+        RestClient.Builder builder = RestClient.builder().baseUrl(TestConstants.TEST_TFL_BASE_URL);
+        mockServer = MockRestServiceServer.bindTo(builder).build();
+        client = new TflClient(builder.build(), configuredProperties, resilientExecutor);
+    }
+
+    private TflProperties defaultProperties() {
+        return createProperties(
+                TestConstants.TEST_TFL_APP_ID,
+                TestConstants.TEST_TFL_APP_KEY,
+                SyntheticFaultProperties.DISABLED,
+                200
+        );
+    }
+
+    private TflProperties createProperties(
+            String appId,
+            String appKey,
+            SyntheticFaultProperties syntheticFault,
+            int maxInFlight
+    ) {
+        return new TflProperties(
+                TestConstants.TEST_TFL_BASE_URL,
+                TestConstants.TEST_TFL_LINE_STATUS_PATH,
+                TestConstants.TEST_TFL_LINE_STATUS_RANGE_PATH,
+                TestConstants.TEST_TFL_ALL_TUBE_STATUSES_PATH,
+                1000,
+                2000,
+                maxInFlight,
+                appId,
+                appKey,
+                syntheticFault
+        );
     }
 }

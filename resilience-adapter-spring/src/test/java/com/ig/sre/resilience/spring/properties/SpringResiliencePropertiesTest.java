@@ -31,8 +31,6 @@ class SpringResiliencePropertiesTest {
     }
 
     private static @NonNull SpringResilienceProperties getSpringResilienceProperties() {
-        SpringResilienceProperties properties = new SpringResilienceProperties();
-
         RetryProperties retryProperties = new RetryProperties(4, 200, 800, 0.2);
         CircuitBreakerProperties circuitBreakerProperties = new CircuitBreakerProperties(7, 45, 3);
         RateLimitProperties rateLimitProperties = new RateLimitProperties(120);
@@ -43,8 +41,7 @@ class SpringResiliencePropertiesTest {
                 rateLimitProperties
         );
 
-        properties.setPolicies(Map.of("dependency-a", dependencyPolicyProperties));
-        return properties;
+        return new SpringResilienceProperties(Map.of("dependency-a", dependencyPolicyProperties));
     }
 
     @Test

@@ -60,8 +60,7 @@ class TubeStatusServiceTest {
         lineStatusCache = Caffeine.newBuilder().maximumSize(100).build();
         unplannedDisruptionCache = Caffeine.newBuilder().maximumSize(10).build();
 
-        SliProperties sliProperties = new SliProperties();
-        sliProperties.setFreshnessThreshold(Duration.ofMinutes(5));
+        SliProperties sliProperties = new SliProperties(Duration.ofMinutes(5));
 
         service = new TubeStatusService(
                 tflClient,
