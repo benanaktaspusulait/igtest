@@ -86,27 +86,14 @@ public class TubeStatusService {
             incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_RATE_LIMITED);
             throw new TooManyRequestsException(ex.getRetryAfterSeconds());
         } catch (DependencySaturatedException ex) {
-            LineStatusResponse cached = lineStatusCache.getIfPresent(cacheKey);
-            if (cached != null) {
-                incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_STALE);
-                LineStatusResponse staleResponse = markLineStatusStale(cached);
-                recordLineStatusQuality(staleResponse);
-                return staleResponse;
-            }
-
-            incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_UNAVAILABLE);
-            throw new UpstreamUnavailableException(AppConstants.Messages.LINE_STATUS_CACHE_MISS_SATURATED, ex);
+            return lineStatusFromCacheOrThrow(
+                    cacheKey,
+                    AppConstants.Messages.LINE_STATUS_CACHE_MISS_SATURATED,
+                    ex
+            );
         } catch (CircuitBreakerOpenException ex) {
-            LineStatusResponse cached = lineStatusCache.getIfPresent(cacheKey);
-            if (cached != null) {
-                incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_STALE);
-                LineStatusResponse staleResponse = markLineStatusStale(cached);
-                recordLineStatusQuality(staleResponse);
-                return staleResponse;
-            }
-
-            incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_UNAVAILABLE);
-            throw new UpstreamUnavailableException(
+            return lineStatusFromCacheOrThrow(
+                    cacheKey,
                     withRetryAfterMessage(AppConstants.Messages.LINE_STATUS_CACHE_MISS_UPSTREAM, ex.getRetryAfterSeconds()),
                     ex
             );
@@ -115,17 +102,11 @@ public class TubeStatusService {
                 incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_CLIENT_ERROR);
                 throw toLineStatusClientError(ex, lineId);
             }
-
-            LineStatusResponse cached = lineStatusCache.getIfPresent(cacheKey);
-            if (cached != null) {
-                incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_STALE);
-                LineStatusResponse staleResponse = markLineStatusStale(cached);
-                recordLineStatusQuality(staleResponse);
-                return staleResponse;
-            }
-
-            incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_UNAVAILABLE);
-            throw new UpstreamUnavailableException(AppConstants.Messages.LINE_STATUS_CACHE_MISS_UPSTREAM, ex);
+            return lineStatusFromCacheOrThrow(
+                    cacheKey,
+                    AppConstants.Messages.LINE_STATUS_CACHE_MISS_UPSTREAM,
+                    ex
+            );
         } finally {
             timer.stop(
                     Timer.builder(AppConstants.Metrics.TUBE_STATUS_REQUEST_LATENCY)
@@ -155,43 +136,12 @@ public class TubeStatusService {
             );
             throw new TooManyRequestsException(ex.getRetryAfterSeconds());
         } catch (DependencySaturatedException ex) {
-            UnplannedDisruptionsResponse cached = unplannedDisruptionCache.getIfPresent(
-                    AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_KEY
+            return unplannedFromCacheOrThrow(
+                    AppConstants.Messages.DISRUPTION_CACHE_MISS_SATURATED,
+                    ex
             );
-            if (cached != null) {
-                incrementRequestCounter(
-                        AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
-                        AppConstants.Metrics.OUTCOME_STALE
-                );
-                UnplannedDisruptionsResponse staleResponse = markUnplannedStale(cached);
-                recordUnplannedDisruptionsQuality(staleResponse);
-                return staleResponse;
-            }
-
-            incrementRequestCounter(
-                    AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
-                    AppConstants.Metrics.OUTCOME_UNAVAILABLE
-            );
-            throw new UpstreamUnavailableException(AppConstants.Messages.DISRUPTION_CACHE_MISS_SATURATED, ex);
         } catch (CircuitBreakerOpenException ex) {
-            UnplannedDisruptionsResponse cached = unplannedDisruptionCache.getIfPresent(
-                    AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_KEY
-            );
-            if (cached != null) {
-                incrementRequestCounter(
-                        AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
-                        AppConstants.Metrics.OUTCOME_STALE
-                );
-                UnplannedDisruptionsResponse staleResponse = markUnplannedStale(cached);
-                recordUnplannedDisruptionsQuality(staleResponse);
-                return staleResponse;
-            }
-
-            incrementRequestCounter(
-                    AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
-                    AppConstants.Metrics.OUTCOME_UNAVAILABLE
-            );
-            throw new UpstreamUnavailableException(
+            return unplannedFromCacheOrThrow(
                     withRetryAfterMessage(AppConstants.Messages.DISRUPTION_CACHE_MISS_UPSTREAM, ex.getRetryAfterSeconds()),
                     ex
             );
@@ -203,25 +153,10 @@ public class TubeStatusService {
                 );
                 throw new BadRequestException(AppConstants.Messages.INVALID_DISRUPTION_REQUEST_PREFIX + ex.getMessage());
             }
-
-            UnplannedDisruptionsResponse cached = unplannedDisruptionCache.getIfPresent(
-                    AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_KEY
+            return unplannedFromCacheOrThrow(
+                    AppConstants.Messages.DISRUPTION_CACHE_MISS_UPSTREAM,
+                    ex
             );
-            if (cached != null) {
-                incrementRequestCounter(
-                        AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
-                        AppConstants.Metrics.OUTCOME_STALE
-                );
-                UnplannedDisruptionsResponse staleResponse = markUnplannedStale(cached);
-                recordUnplannedDisruptionsQuality(staleResponse);
-                return staleResponse;
-            }
-
-            incrementRequestCounter(
-                    AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
-                    AppConstants.Metrics.OUTCOME_UNAVAILABLE
-            );
-            throw new UpstreamUnavailableException(AppConstants.Messages.DISRUPTION_CACHE_MISS_UPSTREAM, ex);
         } finally {
             timer.stop(
                     Timer.builder(AppConstants.Metrics.TUBE_STATUS_REQUEST_LATENCY)
@@ -256,6 +191,40 @@ public class TubeStatusService {
                 startDate == null ? AppConstants.CacheNames.CURRENT_KEY_PART : startDate,
                 endDate == null ? AppConstants.CacheNames.CURRENT_KEY_PART : endDate
         );
+    }
+
+    private LineStatusResponse lineStatusFromCacheOrThrow(String cacheKey, String unavailableMessage, Throwable cause) {
+        LineStatusResponse cached = lineStatusCache.getIfPresent(cacheKey);
+        if (cached != null) {
+            incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_STALE);
+            LineStatusResponse staleResponse = markLineStatusStale(cached);
+            recordLineStatusQuality(staleResponse);
+            return staleResponse;
+        }
+
+        incrementRequestCounter(AppConstants.Metrics.ENDPOINT_LINE_STATUS, AppConstants.Metrics.OUTCOME_UNAVAILABLE);
+        throw new UpstreamUnavailableException(unavailableMessage, cause);
+    }
+
+    private UnplannedDisruptionsResponse unplannedFromCacheOrThrow(String unavailableMessage, Throwable cause) {
+        UnplannedDisruptionsResponse cached = unplannedDisruptionCache.getIfPresent(
+                AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_KEY
+        );
+        if (cached != null) {
+            incrementRequestCounter(
+                    AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
+                    AppConstants.Metrics.OUTCOME_STALE
+            );
+            UnplannedDisruptionsResponse staleResponse = markUnplannedStale(cached);
+            recordUnplannedDisruptionsQuality(staleResponse);
+            return staleResponse;
+        }
+
+        incrementRequestCounter(
+                AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS,
+                AppConstants.Metrics.OUTCOME_UNAVAILABLE
+        );
+        throw new UpstreamUnavailableException(unavailableMessage, cause);
     }
 
     private LineStatusResponse markLineStatusStale(LineStatusResponse cached) {
