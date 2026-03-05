@@ -11,10 +11,10 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = AppConstants.PropertyPrefixes.TFL)
 @Validated
 public record TflProperties(
-        @NotBlank @DefaultValue(AppConstants.Tfl.BASE_URL) String baseUrl,
-        @NotBlank @DefaultValue(AppConstants.Tfl.LINE_STATUS_PATH) String lineStatusPath,
-        @NotBlank @DefaultValue(AppConstants.Tfl.LINE_STATUS_RANGE_PATH) String lineStatusRangePath,
-        @NotBlank @DefaultValue(AppConstants.Tfl.ALL_TUBE_STATUSES_PATH) String allTubeStatusesPath,
+        @NotBlank String baseUrl,
+        @NotBlank String lineStatusPath,
+        @NotBlank String lineStatusRangePath,
+        @NotBlank String allTubeStatusesPath,
         @Positive @DefaultValue("1000") int connectTimeoutMillis,
         @Positive @DefaultValue("2000") int readTimeoutMillis,
         @Positive @DefaultValue("200") int maxInFlight,

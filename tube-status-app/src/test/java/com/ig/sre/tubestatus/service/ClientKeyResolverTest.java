@@ -67,9 +67,9 @@ class ClientKeyResolverTest {
 
     private ApiProperties apiProperties(boolean trustForwardHeaders, List<String> trustedProxyIps) {
         return new ApiProperties(
-                AppConstants.Api.DEFAULT_BASE_PATH,
-                AppConstants.Api.DEFAULT_LINE_STATUS_PATH,
-                AppConstants.Api.DEFAULT_UNPLANNED_DISRUPTIONS_PATH,
+                "/api/v1/tube",
+                "/{lineId}/status",
+                "/disruptions/unplanned",
                 AppConstants.Api.DEFAULT_API_VERSION,
                 AppConstants.Api.DEFAULT_API_VERSION_RANGE,
                 AppConstants.Api.DEFAULT_API_VERSION_HEADER,

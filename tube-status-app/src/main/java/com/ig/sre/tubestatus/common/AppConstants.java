@@ -27,11 +27,7 @@ public final class AppConstants {
     }
 
     public static final class Tfl {
-        public static final String BASE_URL = "https://api.tfl.gov.uk";
         public static final String DEPENDENCY_KEY = "tfl";
-        public static final String LINE_STATUS_PATH = "/Line/{lineId}/Status";
-        public static final String LINE_STATUS_RANGE_PATH = "/Line/{lineId}/Status/{startDate}/to/{endDate}";
-        public static final String ALL_TUBE_STATUSES_PATH = "/Line/Mode/tube/Status";
         public static final String APP_ID_QUERY_PARAM = "app_id";
         public static final String APP_KEY_QUERY_PARAM = "app_key";
         public static final String OPERATION_LINE_STATUS_CURRENT = "line_status_current";
@@ -43,15 +39,12 @@ public final class AppConstants {
     }
 
     public static final class Api {
-        public static final String DEFAULT_BASE_PATH = "/api/v1/tube";
-        public static final String DEFAULT_LINE_STATUS_PATH = "/{lineId}/status";
-        public static final String DEFAULT_UNPLANNED_DISRUPTIONS_PATH = "/disruptions/unplanned";
         public static final String DEFAULT_API_VERSION = "1.0";
         public static final String DEFAULT_API_VERSION_RANGE = "1.0";
         public static final String DEFAULT_API_VERSION_HEADER = "API-Version";
-        public static final String PLACEHOLDER_BASE_PATH = "${app.api.base-path:/api/v1/tube}";
-        public static final String PLACEHOLDER_LINE_STATUS_PATH = "${app.api.line-status-path:/{lineId}/status}";
-        public static final String PLACEHOLDER_UNPLANNED_DISRUPTIONS_PATH = "${app.api.unplanned-disruptions-path:/disruptions/unplanned}";
+        public static final String PLACEHOLDER_BASE_PATH = "${app.api.base-path}";
+        public static final String PLACEHOLDER_LINE_STATUS_PATH = "${app.api.line-status-path}";
+        public static final String PLACEHOLDER_UNPLANNED_DISRUPTIONS_PATH = "${app.api.unplanned-disruptions-path}";
         public static final String HEADER_DATA_SOURCE = "X-Data-Source";
         public static final String HEADER_RETRY_AFTER = "Retry-After";
         public static final String HEADER_FORWARDED_FOR = "X-Forwarded-For";

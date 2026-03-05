@@ -12,9 +12,9 @@ import java.util.Objects;
 @ConfigurationProperties(prefix = AppConstants.PropertyPrefixes.APP_API)
 @Validated
 public record ApiProperties(
-        @NotBlank @DefaultValue(AppConstants.Api.DEFAULT_BASE_PATH) String basePath,
-        @NotBlank @DefaultValue(AppConstants.Api.DEFAULT_LINE_STATUS_PATH) String lineStatusPath,
-        @NotBlank @DefaultValue(AppConstants.Api.DEFAULT_UNPLANNED_DISRUPTIONS_PATH) String unplannedDisruptionsPath,
+        @NotBlank String basePath,
+        @NotBlank String lineStatusPath,
+        @NotBlank String unplannedDisruptionsPath,
         @NotBlank @DefaultValue(AppConstants.Api.DEFAULT_API_VERSION) String defaultVersion,
         @NotBlank @DefaultValue(AppConstants.Api.DEFAULT_API_VERSION_RANGE) String versionRange,
         @NotBlank @DefaultValue(AppConstants.Api.DEFAULT_API_VERSION_HEADER) String versionHeader,
