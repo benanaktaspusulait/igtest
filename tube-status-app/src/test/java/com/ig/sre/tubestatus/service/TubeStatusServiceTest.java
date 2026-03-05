@@ -62,15 +62,19 @@ class TubeStatusServiceTest {
 
         SliProperties sliProperties = new SliProperties(Duration.ofMinutes(5));
         ResilientEndpointExecutor resilientEndpointExecutor = new ResilientEndpointExecutor(meterRegistry);
+        TubeStatusCacheSupport tubeStatusCacheSupport = new TubeStatusCacheSupport();
+        TubeStatusQualityMetrics tubeStatusQualityMetrics = new TubeStatusQualityMetrics(meterRegistry, sliProperties);
+        TubeStatusErrorMapper tubeStatusErrorMapper = new TubeStatusErrorMapper();
 
         service = new TubeStatusService(
                 tflClient,
                 mapper,
                 resilientEndpointExecutor,
-                meterRegistry,
+                tubeStatusCacheSupport,
+                tubeStatusQualityMetrics,
+                tubeStatusErrorMapper,
                 lineStatusCache,
-                unplannedDisruptionCache,
-                sliProperties
+                unplannedDisruptionCache
         );
     }
 
