@@ -61,10 +61,12 @@ class TubeStatusServiceTest {
         unplannedDisruptionCache = Caffeine.newBuilder().maximumSize(10).build();
 
         SliProperties sliProperties = new SliProperties(Duration.ofMinutes(5));
+        ResilientEndpointExecutor resilientEndpointExecutor = new ResilientEndpointExecutor(meterRegistry);
 
         service = new TubeStatusService(
                 tflClient,
                 mapper,
+                resilientEndpointExecutor,
                 meterRegistry,
                 lineStatusCache,
                 unplannedDisruptionCache,

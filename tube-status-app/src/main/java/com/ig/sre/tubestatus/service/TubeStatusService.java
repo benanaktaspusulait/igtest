@@ -9,16 +9,9 @@ import com.ig.sre.tubestatus.client.tfl.model.TflLine;
 import com.ig.sre.tubestatus.common.AppConstants;
 import com.ig.sre.tubestatus.config.SliProperties;
 import com.ig.sre.tubestatus.exception.BadRequestException;
-import com.ig.sre.tubestatus.exception.DependencySaturatedException;
-import com.ig.sre.tubestatus.exception.TooManyRequestsException;
 import com.ig.sre.tubestatus.exception.TubeLineNotFoundException;
-import com.ig.sre.tubestatus.exception.UpstreamUnavailableException;
-import com.ig.sre.resilience.core.circuit.CircuitBreakerOpenException;
-import com.ig.sre.resilience.core.error.ErrorCategory;
 import com.ig.sre.resilience.core.error.UpstreamException;
-import com.ig.sre.resilience.core.ratelimit.RateLimitExceededException;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -28,16 +21,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 @Service
 public class TubeStatusService {
 
     private final TflClient tflClient;
     private final TubeStatusMapper mapper;
+    private final ResilientEndpointExecutor resilientEndpointExecutor;
     private final MeterRegistry meterRegistry;
     private final Cache<String, LineStatusResponse> lineStatusCache;
     private final Cache<String, UnplannedDisruptionsResponse> unplannedDisruptionCache;
@@ -50,6 +40,7 @@ public class TubeStatusService {
     public TubeStatusService(
             TflClient tflClient,
             TubeStatusMapper mapper,
+            ResilientEndpointExecutor resilientEndpointExecutor,
             MeterRegistry meterRegistry,
             @Qualifier(AppConstants.CacheNames.LINE_STATUS_CACHE_BEAN) Cache<String, LineStatusResponse> lineStatusCache,
             @Qualifier(AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_BEAN) Cache<String, UnplannedDisruptionsResponse> unplannedDisruptionCache,
@@ -57,6 +48,7 @@ public class TubeStatusService {
     ) {
         this.tflClient = tflClient;
         this.mapper = mapper;
+        this.resilientEndpointExecutor = resilientEndpointExecutor;
         this.meterRegistry = meterRegistry;
         this.lineStatusCache = lineStatusCache;
         this.unplannedDisruptionCache = unplannedDisruptionCache;
@@ -71,7 +63,7 @@ public class TubeStatusService {
     ) {
         String endpoint = AppConstants.Metrics.ENDPOINT_LINE_STATUS;
         String cacheKey = buildLineStatusCacheKey(lineId, startDate, endDate);
-        return withLatency(endpoint, () -> executeWithResilience(
+        return resilientEndpointExecutor.execute(
                 endpoint,
                 () -> {
                     List<TflLine> response = startDate == null
@@ -87,17 +79,19 @@ public class TubeStatusService {
                     return liveResponse;
                 },
                 () -> lineStatusCache.getIfPresent(cacheKey),
-                this::markLineStatusStale,
-                this::recordLineStatusQuality,
+                TubeStatusService::markLineStatusStale,
+                this::recordLineStatusQualityIfPresent,
                 ex -> toLineStatusClientError(ex, lineId),
-                AppConstants.Messages.LINE_STATUS_CACHE_MISS_UPSTREAM,
-                AppConstants.Messages.LINE_STATUS_CACHE_MISS_SATURATED
-        ));
+                new ResilientEndpointExecutor.FallbackMessages(
+                        AppConstants.Messages.LINE_STATUS_CACHE_MISS_UPSTREAM,
+                        AppConstants.Messages.LINE_STATUS_CACHE_MISS_SATURATED
+                )
+        );
     }
 
     public UnplannedDisruptionsResponse getUnplannedDisruptions(String clientKey) {
         String endpoint = AppConstants.Metrics.ENDPOINT_UNPLANNED_DISRUPTIONS;
-        return withLatency(endpoint, () -> executeWithResilience(
+        return resilientEndpointExecutor.execute(
                 endpoint,
                 () -> {
                     List<TflLine> response = tflClient.getAllTubeStatuses(clientKey);
@@ -107,12 +101,14 @@ public class TubeStatusService {
                     return liveResponse;
                 },
                 () -> unplannedDisruptionCache.getIfPresent(AppConstants.CacheNames.UNPLANNED_DISRUPTION_CACHE_KEY),
-                this::markUnplannedStale,
-                this::recordUnplannedDisruptionsQuality,
+                TubeStatusService::markUnplannedStale,
+                this::recordUnplannedDisruptionsQualityIfPresent,
                 this::toDisruptionsClientError,
-                AppConstants.Messages.DISRUPTION_CACHE_MISS_UPSTREAM,
-                AppConstants.Messages.DISRUPTION_CACHE_MISS_SATURATED
-        ));
+                new ResilientEndpointExecutor.FallbackMessages(
+                        AppConstants.Messages.DISRUPTION_CACHE_MISS_UPSTREAM,
+                        AppConstants.Messages.DISRUPTION_CACHE_MISS_SATURATED
+                )
+        );
     }
 
     private RuntimeException toLineStatusClientError(UpstreamException upstreamException, String lineId) {
@@ -126,14 +122,6 @@ public class TubeStatusService {
         return new BadRequestException(AppConstants.Messages.INVALID_DISRUPTION_REQUEST_PREFIX + upstreamException.getMessage());
     }
 
-    private String withRetryAfterMessage(String baseMessage, long retryAfterSeconds) {
-        return baseMessage + AppConstants.Messages.RETRY_AFTER_SECONDS_SUFFIX_TEMPLATE.formatted(retryAfterSeconds);
-    }
-
-    private boolean isClientError(UpstreamException upstreamException) {
-        return upstreamException.getCategory() == ErrorCategory.CLIENT_ERROR;
-    }
-
     private String buildLineStatusCacheKey(String lineId, LocalDate startDate, LocalDate endDate) {
         return AppConstants.Formats.LINE_STATUS_CACHE_KEY_FORMAT.formatted(
                 lineId.toLowerCase(Locale.ROOT),
@@ -142,94 +130,7 @@ public class TubeStatusService {
         );
     }
 
-    private <T> T withLatency(String endpoint, Supplier<T> supplier) {
-        Timer.Sample timer = Timer.start(meterRegistry);
-        try {
-            return supplier.get();
-        } finally {
-            timer.stop(
-                    Timer.builder(AppConstants.Metrics.TUBE_STATUS_REQUEST_LATENCY)
-                            .description(AppConstants.Metrics.REQUEST_LATENCY_DESCRIPTION)
-                            .tag(AppConstants.Metrics.TAG_ENDPOINT, endpoint)
-                            .register(meterRegistry)
-            );
-        }
-    }
-
-    private <T> T executeWithResilience(
-            String endpoint,
-            Supplier<T> liveSupplier,
-            Supplier<T> cacheSupplier,
-            UnaryOperator<T> staleMapper,
-            Consumer<T> qualityRecorder,
-            Function<UpstreamException, RuntimeException> clientErrorMapper,
-            String unavailableMessage,
-            String saturatedMessage
-    ) {
-        try {
-            T liveResponse = liveSupplier.get();
-            incrementRequestCounter(endpoint, AppConstants.Metrics.OUTCOME_LIVE);
-            qualityRecorder.accept(liveResponse);
-            return liveResponse;
-        } catch (RateLimitExceededException ex) {
-            incrementRequestCounter(endpoint, AppConstants.Metrics.OUTCOME_RATE_LIMITED);
-            throw new TooManyRequestsException(ex.getRetryAfterSeconds());
-        } catch (DependencySaturatedException ex) {
-            return fallbackFromCacheOrThrow(
-                    endpoint,
-                    cacheSupplier,
-                    staleMapper,
-                    qualityRecorder,
-                    saturatedMessage,
-                    ex
-            );
-        } catch (CircuitBreakerOpenException ex) {
-            return fallbackFromCacheOrThrow(
-                    endpoint,
-                    cacheSupplier,
-                    staleMapper,
-                    qualityRecorder,
-                    withRetryAfterMessage(unavailableMessage, ex.getRetryAfterSeconds()),
-                    ex
-            );
-        } catch (UpstreamException ex) {
-            if (isClientError(ex)) {
-                incrementRequestCounter(endpoint, AppConstants.Metrics.OUTCOME_CLIENT_ERROR);
-                throw clientErrorMapper.apply(ex);
-            }
-
-            return fallbackFromCacheOrThrow(
-                    endpoint,
-                    cacheSupplier,
-                    staleMapper,
-                    qualityRecorder,
-                    unavailableMessage,
-                    ex
-            );
-        }
-    }
-
-    private <T> T fallbackFromCacheOrThrow(
-            String endpoint,
-            Supplier<T> cacheSupplier,
-            UnaryOperator<T> staleMapper,
-            Consumer<T> qualityRecorder,
-            String unavailableMessage,
-            Throwable cause
-    ) {
-        T cached = cacheSupplier.get();
-        if (cached != null) {
-            incrementRequestCounter(endpoint, AppConstants.Metrics.OUTCOME_STALE);
-            T staleResponse = staleMapper.apply(cached);
-            qualityRecorder.accept(staleResponse);
-            return staleResponse;
-        }
-
-        incrementRequestCounter(endpoint, AppConstants.Metrics.OUTCOME_UNAVAILABLE);
-        throw new UpstreamUnavailableException(unavailableMessage, cause);
-    }
-
-    private LineStatusResponse markLineStatusStale(LineStatusResponse cached) {
+    private static LineStatusResponse markLineStatusStale(LineStatusResponse cached) {
         return new LineStatusResponse(
                 cached.lineId(),
                 cached.lineName(),
@@ -239,7 +140,7 @@ public class TubeStatusService {
         );
     }
 
-    private UnplannedDisruptionsResponse markUnplannedStale(UnplannedDisruptionsResponse cached) {
+    private static UnplannedDisruptionsResponse markUnplannedStale(UnplannedDisruptionsResponse cached) {
         return new UnplannedDisruptionsResponse(
                 cached.lines(),
                 true,
@@ -247,14 +148,16 @@ public class TubeStatusService {
         );
     }
 
-    private void incrementRequestCounter(String endpoint, String outcome) {
-        meterRegistry.counter(
-                AppConstants.Metrics.TUBE_STATUS_REQUESTS_TOTAL,
-                AppConstants.Metrics.TAG_ENDPOINT,
-                endpoint,
-                AppConstants.Metrics.TAG_OUTCOME,
-                outcome
-        ).increment();
+    private void recordLineStatusQualityIfPresent(LineStatusResponse response) {
+        if (response != null) {
+            recordLineStatusQuality(response);
+        }
+    }
+
+    private void recordUnplannedDisruptionsQualityIfPresent(UnplannedDisruptionsResponse response) {
+        if (response != null) {
+            recordUnplannedDisruptionsQuality(response);
+        }
     }
 
     private void recordLineStatusQuality(LineStatusResponse response) {
